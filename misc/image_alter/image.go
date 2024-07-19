@@ -14,7 +14,7 @@ import (
 func main() {
 	input_file := flag.String("input", "input.png", "Input PNG file")
 	output_file := flag.String("output", "output.png", "Output PNG file")
-	mode := flag.String("mode", "shuffle", "Image processing mode")
+	mode := flag.String("mode", "invert", "Image processing mode")
 	seed := flag.Int64("seed", time.Now().UnixNano(), "Random seed for shuffling")
 	flag.Parse()
 
@@ -39,6 +39,8 @@ func main() {
 	switch *mode {
 		case "shuffle":
 			shuffle_pixels(input_image, output_image, width, height, *seed)
+		case "invert":
+			invert_colors(input_image, output_image, width, height)
 		default:
 			fmt.Println("Invalid mode selected. Using default shuffle mode.")
 			shuffle_pixels(input_image, output_image, width, height, *seed)
@@ -82,3 +84,16 @@ func shuffle_pixels(input image.Image, output *image.RGBA, width, height int, se
 }
 
 
+func invert_colors(input image.Image, output *image.RGBA, width, height int) {
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			r, g, b, a := input.At(x, y).RGBA()
+			output.Set(x, y, color.RGBA{
+				R: uint8(255 - r>>8),
+				G: uint8(255 - g>>8),
+				B: uint8(255 - b>>8),
+				A: uint8(a >> 8),
+			})
+		}
+	}
+}

@@ -46,14 +46,14 @@ func main() {
 				continue
 			}
 
-			drawCircle(buffer, centerX, centerY, circles[i].radius)
+			draw_circle(buffer, centerX, centerY, circles[i].radius)
 		}
 
 		move_cursor_to_top()
 
 		for y, row := range buffer {
 			for x, ch := range row {
-				color := getColorAtPosition(circles, centerX, centerY, x, y)
+				color := get_color_at_position(circles, centerX, centerY, x, y)
 				if color != 0 {
 					fmt.Printf("\x1b[%dm%c\x1b[0m", color, ch)
 				} else {
@@ -67,7 +67,7 @@ func main() {
 	}
 }
 
-func drawCircle(buffer [][]rune, centerX, centerY int, radius float64) {
+func draw_circle(buffer [][]rune, centerX, centerY int, radius float64) {
 	for theta := 0.0; theta < 2*math.Pi; theta += 0.01 {
 		x := int(float64(centerX) + radius*math.Cos(theta))
 		y := int(float64(centerY) + radius*math.Sin(theta)/2) 
@@ -78,7 +78,7 @@ func drawCircle(buffer [][]rune, centerX, centerY int, radius float64) {
 	}
 }
 
-func getColorAtPosition(circles []circle, centerX, centerY, x, y int) int {
+func get_color_at_position(circles []circle, centerX, centerY, x, y int) int {
 	for i := len(circles) - 1; i >= 0; i-- {
 		dx := float64(x - centerX)
 		dy := float64(y - centerY) * 2 

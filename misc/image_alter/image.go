@@ -15,7 +15,7 @@ import (
 func main() {
 	input_file := flag.String("input", "input.png", "Input PNG file")
 	output_file := flag.String("output", "output.png", "Output PNG file")
-	mode := flag.String("mode", "edge_detect", "Image processing mode")
+	mode := flag.String("mode", "pixelate", "Image processing mode")
 	seed := flag.Int64("seed", time.Now().UnixNano(), "Random seed for shuffling")
 	flag.Parse()
 
@@ -46,6 +46,8 @@ func main() {
 			convert_to_grayscale(input_image, output_image, width, height)
 		case "edge_detect":
 			edge_detection(input_image, output_image, width, height)
+		case "pixelate":
+			pixelate(input_image, output_image, width, height, 5)
 		default:
 			fmt.Println("Invalid mode selected. Using default shuffle mode.")
 			shuffle_pixels(input_image, output_image, width, height, *seed)
@@ -143,4 +145,36 @@ func sobel_y(img image.Image, x, y int) int {
 func brightness(c color.Color) uint8 {
 	r, g, b, _ := c.RGBA()
 	return uint8((0.299*float64(r) + 0.587*float64(g) + 0.114*float64(b)) / 256.0)
+}
+
+func pixelate(input image.Image, output *image.RGBA, width, height, block_size int) {
+	for y := 0; y < height; y += block_size {
+		for x := 0; x < width; x += block_size {
+			r, g, b, a := average_color(input, x, y, block_size, width, height)
+			for dy := 0; dy < block_size && y+dy < height; dy++ {
+				for dx := 0; dx < block_size && x+dx < width; dx++ {
+					output.Set(x+dx, y+dy, color.RGBA{r, g, b, a})
+				}
+			}
+		}
+	}
+}
+
+func average_color(img image.Image, x, y, block_size, width, height int) (uint8, uint8, uint8, uint8) {
+	var r, g, b, a uint32
+	var count int
+	for dy := 0; dy < block_size && y+dy < height; dy++ {
+		for dx := 0; dx < block_size && x+dx < width; dx++ {
+			pr, pg, pb, pa := img.At(x+dx, y+dy).RGBA()
+			r += pr
+			g += pg
+			b += pb
+			a += pa
+			count++
+		}
+	}
+	return uint8(r / uint32(count) >> 8),
+		uint8(g / uint32(count) >> 8),
+		uint8(b / uint32(count) >> 8),
+		uint8(a / uint32(count) >> 8)
 }

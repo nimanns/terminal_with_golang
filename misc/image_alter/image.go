@@ -7,6 +7,7 @@ import (
 	"image/color"
 	"image/png"
 	"math/rand"
+	"math"
 	"os"
 	"time"
 )
@@ -14,7 +15,7 @@ import (
 func main() {
 	input_file := flag.String("input", "input.png", "Input PNG file")
 	output_file := flag.String("output", "output.png", "Output PNG file")
-	mode := flag.String("mode", "gs", "Image processing mode")
+	mode := flag.String("mode", "edge_detect", "Image processing mode")
 	seed := flag.Int64("seed", time.Now().UnixNano(), "Random seed for shuffling")
 	flag.Parse()
 
@@ -43,6 +44,8 @@ func main() {
 			invert_colors(input_image, output_image, width, height)
 		case "gs":
 			convert_to_grayscale(input_image, output_image, width, height)
+		case "edge_detect":
+			edge_detection(input_image, output_image, width, height)
 		default:
 			fmt.Println("Invalid mode selected. Using default shuffle mode.")
 			shuffle_pixels(input_image, output_image, width, height, *seed)
@@ -114,4 +117,30 @@ func convert_to_grayscale(input image.Image, output *image.RGBA, width, height i
 			})
 		}
 	}
+}
+
+func edge_detection(input image.Image, output *image.RGBA, width, height int) {
+	for y := 1; y < height-1; y++ {
+		for x := 1; x < width-1; x++ {
+			gx := sobel_x(input, x, y)
+			gy := sobel_y(input, x, y)
+			magnitude := uint8(math.Sqrt(float64(gx*gx + gy*gy)))
+			output.Set(x, y, color.RGBA{magnitude, magnitude, magnitude, 255})
+		}
+	}
+}
+
+func sobel_x(img image.Image, x, y int) int {
+	return -int(brightness(img.At(x-1, y-1))) - 2*int(brightness(img.At(x-1, y))) - int(brightness(img.At(x-1, y+1))) +
+		int(brightness(img.At(x+1, y-1))) + 2*int(brightness(img.At(x+1, y))) + int(brightness(img.At(x+1, y+1)))
+}
+
+func sobel_y(img image.Image, x, y int) int {
+	return -int(brightness(img.At(x-1, y-1))) - 2*int(brightness(img.At(x, y-1))) - int(brightness(img.At(x+1, y-1))) +
+		int(brightness(img.At(x-1, y+1))) + 2*int(brightness(img.At(x, y+1))) + int(brightness(img.At(x+1, y+1)))
+}
+
+func brightness(c color.Color) uint8 {
+	r, g, b, _ := c.RGBA()
+	return uint8((0.299*float64(r) + 0.587*float64(g) + 0.114*float64(b)) / 256.0)
 }

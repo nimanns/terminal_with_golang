@@ -10,17 +10,37 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
+	"time"
+	"crypto/sha256"
+	"encoding/hex"
+	"crypto/rand"
+	"strings"
 )
 
 type item struct {
-	id   int    `json:"id"`
-	name string `json:"name"`
+	id         int       `json:"id"`
+	name       string    `json:"name"`
+	created_at time.Time `json:"created_at"`
+	updated_at time.Time `json:"updated_at"`
+}
+
+type user struct {
+	id       int    `json:"id"`
+	username string `json:"username"`
+	password string `json:"password"`
 }
 
 var (
-	items      = make(map[int]item)
-	items_lock sync.RWMutex
-	next_id    = 1
+	items       = make(map[int]item)
+	items_lock  sync.RWMutex
+	next_item_id = 1
+
+	users       = make(map[int]user)
+	users_lock  sync.RWMutex
+	next_user_id = 1
+
+	sessions       = make(map[string]int)
+	sessions_lock  sync.RWMutex
 )
 
 func main() {
@@ -29,8 +49,11 @@ func main() {
 
 	http.HandleFunc("/items", handle_items)
 	http.HandleFunc("/items/", handle_item)
-
 	http.HandleFunc("/upload", handle_upload)
+	http.HandleFunc("/register", handle_register)
+	http.HandleFunc("/login", handle_login)
+	http.HandleFunc("/logout", handle_logout)
+	http.HandleFunc("/search", handle_search)
 
 	log.Println("server starting on :8080")
 	err := http.ListenAndServe(":8080", nil)
@@ -82,8 +105,8 @@ func get_items(w http.ResponseWriter, r *http.Request) {
 }
 
 func create_item(w http.ResponseWriter, r *http.Request) {
-	var item item
-	err := json.NewDecoder(r.Body).Decode(&item)
+	var new_item item
+	err := json.NewDecoder(r.Body).Decode(&new_item)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -92,12 +115,14 @@ func create_item(w http.ResponseWriter, r *http.Request) {
 	items_lock.Lock()
 	defer items_lock.Unlock()
 
-	item.id = next_id
-	next_id++
-	items[item.id] = item
+	new_item.id = next_item_id
+	next_item_id++
+	new_item.created_at = time.Now()
+	new_item.updated_at = time.Now()
+	items[new_item.id] = new_item
 
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(item)
+	json.NewEncoder(w).Encode(new_item)
 }
 
 func get_item(w http.ResponseWriter, r *http.Request, id int) {
@@ -130,6 +155,8 @@ func update_item(w http.ResponseWriter, r *http.Request, id int) {
 	}
 
 	updated_item.id = id
+	updated_item.created_at = items[id].created_at
+	updated_item.updated_at = time.Now()
 	items[id] = updated_item
 
 	json.NewEncoder(w).Encode(updated_item)
@@ -187,4 +214,141 @@ func handle_upload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fmt.Fprintf(w, "file uploaded successfully: %s", header.Filename)
+}
+
+func handle_register(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var new_user user
+	err := json.NewDecoder(r.Body).Decode(&new_user)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	users_lock.Lock()
+	defer users_lock.Unlock()
+
+	for _, u := range users {
+		if u.username == new_user.username {
+			http.Error(w, "username already exists", http.StatusConflict)
+			return
+		}
+	}
+
+	new_user.id = next_user_id
+	next_user_id++
+	new_user.password = hash_password(new_user.password)
+	users[new_user.id] = new_user
+
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(new_user)
+}
+
+func handle_login(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var login_user user
+	err := json.NewDecoder(r.Body).Decode(&login_user)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	users_lock.RLock()
+	defer users_lock.RUnlock()
+
+	for _, u := range users {
+		if u.username == login_user.username && u.password == hash_password(login_user.password) {
+			session_token := generate_session_token()
+			sessions_lock.Lock()
+			sessions[session_token] = u.id
+			sessions_lock.Unlock()
+
+			http.SetCookie(w, &http.Cookie{
+				Name:    "session_token",
+				Value:   session_token,
+				Expires: time.Now().Add(24 * time.Hour),
+			})
+
+			w.WriteHeader(http.StatusOK)
+			fmt.Fprintf(w, "logged in successfully")
+			return
+		}
+	}
+
+	http.Error(w, "invalid credentials", http.StatusUnauthorized)
+}
+
+func handle_logout(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	c, err := r.Cookie("session_token")
+	if err != nil {
+		if err == http.ErrNoCookie {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	session_token := c.Value
+
+	sessions_lock.Lock()
+	delete(sessions, session_token)
+	sessions_lock.Unlock()
+
+	http.SetCookie(w, &http.Cookie{
+		Name:    "session_token",
+		Value:   "",
+		Expires: time.Now(),
+	})
+
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintf(w, "logged out successfully")
+}
+
+func handle_search(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	query := r.URL.Query().Get("q")
+	if query == "" {
+		http.Error(w, "search query is required", http.StatusBadRequest)
+		return
+	}
+
+	items_lock.RLock()
+	defer items_lock.RUnlock()
+
+	var results []item
+	for _, item := range items {
+		if strings.Contains(strings.ToLower(item.name), strings.ToLower(query)) {
+			results = append(results, item)
+		}
+	}
+
+	json.NewEncoder(w).Encode(results)
+}
+
+func hash_password(password string) string {
+	hash := sha256.Sum256([]byte(password))
+	return hex.EncodeToString(hash[:])
+}
+
+func generate_session_token() string {
+	token := make([]byte, 32)
+	rand.Read(token)
+	return hex.EncodeToString(token)
 }

@@ -1,7 +1,7 @@
-
 package main
 
 import (
+    "fmt"
     "github.com/nsf/termbox-go"
     "math/rand"
     "time"
@@ -17,14 +17,16 @@ type snake struct {
 }
 
 var (
-    snake_game snake
-    food       point
-    width      = 20
-    height     = 20
-    game_over  bool
+    snake_game  snake
+    food        point
+    width       = 20
+    height      = 20
+    game_over   bool
+    score       int
+    initial_tick = 100 * time.Millisecond
 )
 
-func init() {
+func init_game() {
     rand.Seed(time.Now().UnixNano())
     snake_game = snake{
         body: []point{
@@ -33,6 +35,8 @@ func init() {
         direction: point{x: 1, y: 0},
     }
     place_food()
+    score = 0
+    game_over = false
 }
 
 func place_food() {
@@ -64,6 +68,7 @@ func move_snake() {
     snake_game.body = append([]point{new_head}, snake_game.body...)
     if new_head == food {
         place_food()
+        score++
     } else {
         snake_game.body = snake_game.body[:len(snake_game.body)-1]
     }
@@ -73,10 +78,18 @@ func draw() {
     termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
 
     for _, segment := range snake_game.body {
-        termbox.SetCell(segment.x, segment.y, 'O', termbox.ColorGreen, termbox.ColorDefault)
+        char := 'O'
+        if segment == snake_game.body[0] {
+            char = 'H'
+        }
+        termbox.SetCell(segment.x, segment.y, char, termbox.ColorGreen, termbox.ColorDefault)
     }
 
     termbox.SetCell(food.x, food.y, '@', termbox.ColorRed, termbox.ColorDefault)
+
+    for i, c := range fmt.Sprintf("Score: %d", score) {
+        termbox.SetCell(i, height, c, termbox.ColorWhite, termbox.ColorDefault)
+    }
 
     termbox.Flush()
 }
@@ -92,7 +105,8 @@ func main() {
     }
     defer termbox.Close()
 
-    ticker := time.NewTicker(100 * time.Millisecond)
+    init_game()
+    ticker := time.NewTicker(initial_tick)
     defer ticker.Stop()
 
     event_queue := make(chan termbox.Event)
@@ -102,38 +116,61 @@ func main() {
         }
     }()
 
-    for !game_over {
-        select {
-        case ev := <-event_queue:
+    for {
+        if game_over {
+            termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
+            msg := "Game Over! Press 'R' to restart or 'Esc' to quit."
+            for i, c := range msg {
+                termbox.SetCell((width-len(msg))/2+i, height/2, c, termbox.ColorRed, termbox.ColorDefault)
+            }
+            termbox.Flush()
+
+            ev := poll_event()
             if ev.Type == termbox.EventKey {
-                switch ev.Key {
-                case termbox.KeyArrowUp:
-                    if snake_game.direction.y == 0 {
-                        snake_game.direction = point{x: 0, y: -1}
-                    }
-                case termbox.KeyArrowDown:
-                    if snake_game.direction.y == 0 {
-                        snake_game.direction = point{x: 0, y: 1}
-                    }
-                case termbox.KeyArrowLeft:
-                    if snake_game.direction.x == 0 {
-                        snake_game.direction = point{x: -1, y: 0}
-                    }
-                case termbox.KeyArrowRight:
-                    if snake_game.direction.x == 0 {
-                        snake_game.direction = point{x: 1, y: 0}
-                    }
-                case termbox.KeyEsc:
-                    game_over = true
+                if ev.Ch == 'r' || ev.Ch == 'R' {
+                    init_game()
+                    ticker = time.NewTicker(initial_tick)
+                } else if ev.Key == termbox.KeyEsc {
+                    break
                 }
             }
-        case <-ticker.C:
-            move_snake()
-            draw()
+        } else {
+            select {
+            case ev := <-event_queue:
+                if ev.Type == termbox.EventKey {
+                    switch ev.Key {
+                    case termbox.KeyArrowUp:
+                        if snake_game.direction.y == 0 {
+                            snake_game.direction = point{x: 0, y: -1}
+                        }
+                    case termbox.KeyArrowDown:
+                        if snake_game.direction.y == 0 {
+                            snake_game.direction = point{x: 0, y: 1}
+                        }
+                    case termbox.KeyArrowLeft:
+                        if snake_game.direction.x == 0 {
+                            snake_game.direction = point{x: -1, y: 0}
+                        }
+                    case termbox.KeyArrowRight:
+                        if snake_game.direction.x == 0 {
+                            snake_game.direction = point{x: 1, y: 0}
+                        }
+                    case termbox.KeyEsc:
+                        game_over = true
+                    }
+                }
+            case <-ticker.C:
+                move_snake()
+                draw()
+                if score != 0 && score%5 == 0 {
+                    ticker.Stop()
+                    ticker = time.NewTicker(initial_tick - time.Duration(score*5)*time.Millisecond)
+                }
+            }
         }
     }
 
     termbox.Close()
-    println("Game Over!")
+    println("Thanks for playing!")
 }
 

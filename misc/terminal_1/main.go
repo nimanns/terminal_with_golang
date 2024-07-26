@@ -2,11 +2,12 @@ package main
 
 import (
 	"fmt"
-	"time"
+	"math"
 	"math/rand"
 	"os"
 	"os/exec"
 	"runtime"
+	"time"
 )
 
 var chars = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-=[]{}|;:',.<>/?`~")
@@ -98,9 +99,42 @@ func moving_parts() {
 	}
 }
 
+func draw_circle(x, y, r int) {
+	for i := 0; i < rows; i++ {
+		for j := 0; j < cols; j++ {
+			distance := math.Sqrt(float64((i-x)*(i-x) + (j-y)*(j-y)))
+			if int(distance) == r {
+				fmt.Printf("%s%s%s%s%c", random_color(), random_bg_color(), random_bold(), random_underline(), random_char())
+			} else {
+				fmt.Print(" ")
+			}
+		}
+		fmt.Print(reset_color() + "\n")
+	}
+}
+
+func animate_circles() {
+	x, y, r := rows/2, cols/2, 10
+	dx, dy := 1, 1
+	for {
+		call_clear()
+		draw_circle(x, y, r)
+		x += dx
+		y += dy
+		if x-r <= 0 || x+r >= rows {
+			dx = -dx
+		}
+		if y-r <= 0 || y+r >= cols {
+			dy = -dy
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
 func main() {
 	rand.Seed(time.Now().UnixNano())
 	go visual_madness()
-	moving_parts()
+	go moving_parts()
+	animate_circles()
 }
 

@@ -25,8 +25,8 @@ func init() {
 		cmd.Stdout = os.Stdout
 		cmd.Run()
 	}
-	rows = 20
-	cols = 50
+	rows = 40
+	cols = 100
 }
 
 func call_clear() {
@@ -81,8 +81,26 @@ func visual_madness() {
 	}
 }
 
+func moving_parts() {
+	for {
+		call_clear()
+		for i := 0; i < rows; i++ {
+			for j := 0; j < cols; j++ {
+				if rand.Intn(100) < 5 {
+					fmt.Printf("%s%s%s%s%c", random_color(), random_bg_color(), random_bold(), random_underline(), random_char())
+				} else {
+					fmt.Print(" ")
+				}
+			}
+			fmt.Print(reset_color() + "\n")
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
 func main() {
 	rand.Seed(time.Now().UnixNano())
-	visual_madness()
+	go visual_madness()
+	moving_parts()
 }
 

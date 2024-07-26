@@ -50,6 +50,20 @@ func random_bg_color() string {
 	return fmt.Sprintf("\033[4%dm", rand.Intn(7)+1)
 }
 
+func random_bold() string {
+	if rand.Intn(2) == 0 {
+		return "\033[1m"
+	}
+	return ""
+}
+
+func random_underline() string {
+	if rand.Intn(2) == 0 {
+		return "\033[4m"
+	}
+	return ""
+}
+
 func reset_color() string {
 	return "\033[0m"
 }
@@ -59,7 +73,7 @@ func visual_madness() {
 		call_clear()
 		for i := 0; i < rows; i++ {
 			for j := 0; j < cols; j++ {
-				fmt.Printf("%s%s%c", random_color(), random_bg_color(), random_char())
+				fmt.Printf("%s%s%s%s%c", random_color(), random_bg_color(), random_bold(), random_underline(), random_char())
 			}
 			fmt.Print(reset_color() + "\n")
 		}
@@ -71,3 +85,4 @@ func main() {
 	rand.Seed(time.Now().UnixNano())
 	visual_madness()
 }
+

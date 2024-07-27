@@ -89,15 +89,17 @@ func generate_word_cloud(w io.Writer, element_map map[string][]string) {
 		for _, value := range values {
 			words := strings.Fields(strings.ToLower(value))
 			for _, word := range words {
-				word_count[word]++
+				if len(word) > 3 {
+					word_count[word]++
+				}
 			}
 		}
 	}
 
 	fmt.Fprintf(w, "<!DOCTYPE html>\n<html>\n<head>\n")
-	fmt.Fprintf(w, "<style>\n.word-cloud {position: relative; width: 800px; height: 400px;}\n")
+	fmt.Fprintf(w, "<style>\n.word_cloud {position: relative; width: 800px; height: 400px;}\n")
 	fmt.Fprintf(w, ".word {position: absolute; font-family: Arial;}\n</style>\n")
-	fmt.Fprintf(w, "</head>\n<body>\n<div class=\"word-cloud\">\n")
+	fmt.Fprintf(w, "</head>\n<body>\n<div class=\"word_cloud\">\n")
 
 	for word, count := range word_count {
 		font_size := 10 + count*2
@@ -110,3 +112,4 @@ func generate_word_cloud(w io.Writer, element_map map[string][]string) {
 
 	fmt.Fprintf(w, "</div>\n</body>\n</html>")
 }
+

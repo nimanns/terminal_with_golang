@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"os"
 	"strings"
@@ -36,6 +37,15 @@ func main() {
 	defer output_file.Close()
 
 	write_html(output_file, element_map)
+	
+	word_cloud_file, err := os.Create("word_cloud.html")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer word_cloud_file.Close()
+
+	generate_word_cloud(word_cloud_file, element_map)
 }
 
 func traverse_node(n *html.Node, element_map map[string][]string) {
@@ -71,4 +81,32 @@ func write_html(w io.Writer, element_map map[string][]string) {
 		fmt.Fprintf(w, "</ul>\n")
 	}
 	fmt.Fprintf(w, "</body>\n</html>")
+}
+
+func generate_word_cloud(w io.Writer, element_map map[string][]string) {
+	word_count := make(map[string]int)
+	for _, values := range element_map {
+		for _, value := range values {
+			words := strings.Fields(strings.ToLower(value))
+			for _, word := range words {
+				word_count[word]++
+			}
+		}
+	}
+
+	fmt.Fprintf(w, "<!DOCTYPE html>\n<html>\n<head>\n")
+	fmt.Fprintf(w, "<style>\n.word-cloud {position: relative; width: 800px; height: 400px;}\n")
+	fmt.Fprintf(w, ".word {position: absolute; font-family: Arial;}\n</style>\n")
+	fmt.Fprintf(w, "</head>\n<body>\n<div class=\"word-cloud\">\n")
+
+	for word, count := range word_count {
+		font_size := 10 + count*2
+		top := rand.Intn(350)
+		left := rand.Intn(750)
+		color := fmt.Sprintf("#%06x", rand.Intn(0xFFFFFF))
+		fmt.Fprintf(w, "<span class=\"word\" style=\"font-size:%dpx;top:%dpx;left:%dpx;color:%s;\">%s</span>\n",
+			font_size, top, left, color, word)
+	}
+
+	fmt.Fprintf(w, "</div>\n</body>\n</html>")
 }

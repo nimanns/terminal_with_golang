@@ -9,6 +9,7 @@ import (
     "os"
     "strconv"
     "time"
+    "strings"
 
     _ "github.com/lib/pq"
     "github.com/gorilla/mux"
@@ -27,6 +28,7 @@ type user struct {
     id         int       `json:"id"`
     name       string    `json:"name"`
     email      string    `json:"email"`
+    role       string    `json:"role"`
     created_at time.Time `json:"created_at"`
     updated_at time.Time `json:"updated_at"`
 }
@@ -74,6 +76,7 @@ func main() {
     router.HandleFunc("/users/{id}", get_user).Methods("GET")
     router.HandleFunc("/users/{id}", update_user).Methods("PUT")
     router.HandleFunc("/users/{id}", delete_user).Methods("DELETE")
+    router.HandleFunc("/users/search", search_users).Methods("GET")
 
     port := os.Getenv("PORT")
     if port == "" {
@@ -90,6 +93,7 @@ func create_table() {
             id SERIAL PRIMARY KEY,
             name VARCHAR(100),
             email VARCHAR(100) UNIQUE,
+            role VARCHAR(50) DEFAULT 'user',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
@@ -160,7 +164,11 @@ func create_user(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    err = db.QueryRow("INSERT INTO users (name, email) VALUES ($1, $2) RETURNING id, created_at, updated_at", new_user.name, new_user.email).Scan(&new_user.id, &new_user.created_at, &new_user.updated_at)
+    if new_user.role == "" {
+        new_user.role = "user"
+    }
+
+    err = db.QueryRow("INSERT INTO users (name, email, role) VALUES ($1, $2, $3) RETURNING id, created_at, updated_at", new_user.name, new_user.email, new_user.role).Scan(&new_user.id, &new_user.created_at, &new_user.updated_at)
     if err != nil {
         http.Error(w, "failed to create user", http.StatusInternalServerError)
         return
@@ -171,7 +179,7 @@ func create_user(w http.ResponseWriter, r *http.Request) {
 }
 
 func get_all_users(w http.ResponseWriter, r *http.Request) {
-    rows, err := db.Query("SELECT id, name, email, created_at, updated_at FROM users")
+    rows, err := db.Query("SELECT id, name, email, role, created_at, updated_at FROM users")
     if err != nil {
         http.Error(w, "failed to get users", http.StatusInternalServerError)
         return
@@ -181,7 +189,7 @@ func get_all_users(w http.ResponseWriter, r *http.Request) {
     var users []user
     for rows.Next() {
         var u user
-        if err := rows.Scan(&u.id, &u.name, &u.email, &u.created_at, &u.updated_at); err != nil {
+        if err := rows.Scan(&u.id, &u.name, &u.email, &u.role, &u.created_at, &u.updated_at); err != nil {
             http.Error(w, "failed to scan user", http.StatusInternalServerError)
             return
         }
@@ -201,7 +209,7 @@ func get_user(w http.ResponseWriter, r *http.Request) {
     }
 
     var u user
-    err = db.QueryRow("SELECT id, name, email, created_at, updated_at FROM users WHERE id = $1", id).Scan(&u.id, &u.name, &u.email, &u.created_at, &u.updated_at)
+    err = db.QueryRow("SELECT id, name, email, role, created_at, updated_at FROM users WHERE id = $1", id).Scan(&u.id, &u.name, &u.email, &u.role, &u.created_at, &u.updated_at)
     if err == sql.ErrNoRows {
         http.Error(w, "user not found", http.StatusNotFound)
         return
@@ -229,7 +237,7 @@ func update_user(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    _, err = db.Exec("UPDATE users SET name = $1, email = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3", update_data.name, update_data.email, id)
+    _, err = db.Exec("UPDATE users SET name = $1, email = $2, role = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4", update_data.name, update_data.email, update_data.role, id)
     if err != nil {
         http.Error(w, "failed to update user", http.StatusInternalServerError)
         return
@@ -264,4 +272,32 @@ func delete_user(w http.ResponseWriter, r *http.Request) {
     }
 
     w.WriteHeader(http.StatusNoContent)
+}
+
+func search_users(w http.ResponseWriter, r *http.Request) {
+    query := r.URL.Query().Get("q")
+    if query == "" {
+        http.Error(w, "search query is required", http.StatusBadRequest)
+        return
+    }
+
+    rows, err := db.Query("SELECT id, name, email, role, created_at, updated_at FROM users WHERE name ILIKE $1 OR email ILIKE $1", "%"+query+"%")
+    if err != nil {
+        http.Error(w, "failed to search users", http.StatusInternalServerError)
+        return
+    }
+    defer rows.Close()
+
+    var users []user
+    for rows.Next() {
+        var u user
+        if err := rows.Scan(&u.id, &u.name, &u.email, &u.role, &u.created_at, &u.updated_at); err != nil {
+            http.Error(w, "failed to scan user", http.StatusInternalServerError)
+            return
+        }
+        users = append(users, u)
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(users)
 }

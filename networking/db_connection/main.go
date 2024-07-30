@@ -11,22 +11,41 @@ import (
 
 	_ "github.com/lib/pq"
 	"github.com/gorilla/mux"
+  "github.com/joho/godotenv"
 )
 
-const (
-	host     = "host"
-	port     = "port"
-	user     = "user"
-	password = "password"
-	dbname   = "postgres"
-)
+type Config struct {
+	DBHost string
+	DBPort int 
+	DBUser string
+	DBPassword string
+	DBName string
+
+}
 
 var db *sql.DB
 
 func main() {
 	var err error
+	env_error := godotenv.Load()
+	if env_error != nil	{
+		fmt.Println("Error loading environment variables.")
+	}
+
+	db_port, err_port := strconv.Atoi(os.Getenv("DBPORT"))
+	if err_port != nil {
+		fmt.Println("Error converting port to int")
+	}
+	conf := Config{
+		DBHost: os.Getenv("DBHOST"),
+		DBPort: db_port,
+		DBUser: os.Getenv("DBUSER"),
+		DBPassword: os.Getenv("DBPASSWORD"),
+		DBName: os.Getenv("DBNAME"),
+	}
+
 	conn_str := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
-		host, port, user, password, dbname)
+		conf.DBHost, conf.DBPort, conf.DBUser, conf.DBPassword, conf.DBName)
 	db, err = sql.Open("postgres", conn_str)
 	if err != nil {
 		log.Fatal(err)

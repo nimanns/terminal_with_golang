@@ -13,8 +13,17 @@ func (r *CakeRepository) Create(cake *models.Cake) error {
 	return r.DB.Create(cake).Error
 }
 
-func (r *CakeRepository) GetAll() ([]models.Cake, error) {
+func (r *CakeRepository) GetAll(page, pageSize int) ([]models.Cake, int64, error) {
 	var cakes []models.Cake
-	err := r.DB.Find(&cakes).Error
-	return cakes, err
+	var total int64
+
+	offset := (page - 1) * pageSize
+
+	err := r.DB.Model(&models.Cake{}).Count(&total).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	err = r.DB.Offset(offset).Limit(pageSize).Find(&cakes).Error
+	return cakes, total, err
 }

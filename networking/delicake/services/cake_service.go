@@ -17,30 +17,7 @@ func (s *CakeService) CreateCake(cake *models.Cake) error {
 	return s.repo.Create(cake)
 }
 
-func (s *CakeService) GetAllCakes() ([]models.Cake, error) {
-	return s.repo.GetAll()
+func (s *CakeService) GetAllCakes(page, pageSize int) ([]models.Cake, int64, error) {
+	return s.repo.GetAll(page, pageSize)
 }
 
-// service/order_service.go
-package service
-
-import (
-	"delicake/models"
-	"delicake/repository"
-)
-
-type OrderService struct {
-	repo *repository.OrderRepository
-}
-
-func NewOrderService(repo *repository.OrderRepository) *OrderService {
-	return &OrderService{repo: repo}
-}
-
-func (s *OrderService) CreateOrder(order *models.Order) error {
-	return s.repo.Create(order)
-}
-
-func (s *OrderService) GetAllOrders() ([]models.Order, error) {
-	return s.repo.GetAll()
-}
